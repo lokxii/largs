@@ -35,7 +35,7 @@ It doesn't do a lot of stuff xargs does. But it is enough for my use case.
   Put all input lines into one line of arguments
 
   ```sh
-  ls | largs rm
+  ls | largs -c rm
 
   # rm file1 file2 file3...
   ```
