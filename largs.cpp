@@ -45,7 +45,8 @@ parse_args(int argc, char** argv) {
                         arg = "";
                         break;
                     default:
-                        break;
+                        std::cerr << "Unknown option " << arg[0] << std::endl;
+                        exit(1);
                 }
             }
 
@@ -105,7 +106,8 @@ void spawn(std::vector<std::string> argv) {
     for (auto a : argv) {
         ss << a << ' ';
     }
-    system(ss.str().c_str());
+    std::cout << ss.str() << std::endl;
+    // system(ss.str().c_str());
 }
 
 int main(int argc, char** argv) {
@@ -133,11 +135,9 @@ int main(int argc, char** argv) {
     } else {
         for (auto input : inputs) {
             auto copy = rest;
-            auto it = std::find(copy.begin(), copy.end(), placeholder);
-            if (it != copy.end()) {
-                copy.erase(it);
+            for (auto& a : copy) {
+                replace_all(a, placeholder, input);
             }
-            copy.insert(it, input);
             spawn(copy);
         }
     }
