@@ -1,6 +1,7 @@
 #include <cstdlib>
 #include <algorithm>
 #include <iostream>
+#include <iterator>
 #include <map>
 #include <optional>
 #include <sstream>
@@ -106,8 +107,7 @@ void spawn(std::vector<std::string> argv) {
     for (auto a : argv) {
         ss << a << ' ';
     }
-    std::cout << ss.str() << std::endl;
-    // system(ss.str().c_str());
+    system(ss.str().c_str());
 }
 
 int main(int argc, char** argv) {
@@ -126,11 +126,38 @@ int main(int argc, char** argv) {
     std::string placeholder = args.contains("j") ? args["j"] : "%";
 
     if (args.contains("c")) {
-        auto it = std::find(rest.begin(), rest.end(), placeholder);
-        if (it != rest.end()) {
+        auto dist = 0;
+        bool found = false;
+        while (true) {
+            auto it = std::find_if(
+                rest.begin() + dist,
+                rest.end(),
+                [=](const auto& i) {
+                    return i.find(placeholder) != std::string::npos;
+                });
+            if (it == rest.end()) {
+                if (!found) {
+                    rest.insert(rest.end(), inputs.begin(), inputs.end());
+                }
+                break;
+            }
+
+            found = true;
+            auto t_input = std::vector<std::string>();
+            std::transform(
+                inputs.begin(),
+                inputs.end(),
+                std::back_inserter(t_input),
+                [&](const auto& i) {
+                    auto pattern = *it;
+                    replace_all(pattern, placeholder, i);
+                    return pattern;
+                });
+            dist = std::distance(rest.begin(), it);
             rest.erase(it);
+            rest.insert(rest.begin() + dist, t_input.begin(), t_input.end());
+            dist += t_input.size();
         }
-        rest.insert(it, inputs.begin(), inputs.end());
         spawn(rest);
     } else {
         for (auto input : inputs) {
