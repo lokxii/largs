@@ -91,10 +91,11 @@ replace_all(
 
 void print_help(std::string basename) {
     std::vector<std::string> message = {
-        "{}, version 0.1",
+        "{}, version 0.2",
         "Line oriented version of xargs",
         "",
-        "usage: {} [-ch] [-j replstr] [utility [argument ...]]"
+        "usage: {} [-ch] [-j replstr] [utility [argument ...]]",
+        "replstr defaults to %"
     };
     for (auto line : message) {
         replace_all(line, "{}", basename);
