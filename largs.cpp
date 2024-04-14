@@ -13,7 +13,6 @@ std::string shift(std::string arg, int count) {
     return std::string(arg.begin() + count, arg.end());
 }
 
-// hcj:
 std::tuple<std::map<std::string, std::string>, std::vector<std::string>>
 parse_args(int argc, char** argv) {
     std::map<std::string, std::string> map;
@@ -115,7 +114,7 @@ void spawn(std::vector<std::string> argv) {
 }
 
 int main(int argc, char** argv) {
-    auto [args, rest] = parse_args(argc, argv);
+    auto [args, cmd] = parse_args(argc, argv);
 
     if (args.contains("h")) {
         print_help(argv[0]);
@@ -134,14 +133,14 @@ int main(int argc, char** argv) {
         bool found = false;
         while (true) {
             auto it = std::find_if(
-                rest.begin() + dist,
-                rest.end(),
+                cmd.begin() + dist,
+                cmd.end(),
                 [=](const auto& i) {
                     return i.find(placeholder) != std::string::npos;
                 });
-            if (it == rest.end()) {
+            if (it == cmd.end()) {
                 if (!found) {
-                    rest.insert(rest.end(), inputs.begin(), inputs.end());
+                    cmd.insert(cmd.end(), inputs.begin(), inputs.end());
                 }
                 break;
             }
@@ -157,23 +156,23 @@ int main(int argc, char** argv) {
                     replace_all(pattern, placeholder, i);
                     return pattern;
                 });
-            dist = std::distance(rest.begin(), it);
-            rest.erase(it);
-            rest.insert(rest.begin() + dist, t_input.begin(), t_input.end());
+            dist = std::distance(cmd.begin(), it);
+            cmd.erase(it);
+            cmd.insert(cmd.begin() + dist, t_input.begin(), t_input.end());
             dist += t_input.size();
         }
-        spawn(rest);
+        spawn(cmd);
     } else {
         for (auto input : inputs) {
-            auto copy = rest;
+            auto cmd_copy = cmd;
             int count = 0;
-            for (auto& a : copy) {
-                count += replace_all(a, placeholder, input);
+            for (auto& arg : cmd_copy) {
+                count += replace_all(arg, placeholder, input);
             }
             if (!count) {
-                copy.insert(copy.end(), input);
+                cmd_copy.insert(cmd_copy.end(), input);
             }
-            spawn(copy);
+            spawn(cmd_copy);
         }
     }
     return 0;
