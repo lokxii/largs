@@ -64,7 +64,7 @@ parse_args(int argc, char** argv) {
     return {map, the_rest};
 }
 
-void
+int
 replace_all(
     std::string& source,
     const std::string& from,
@@ -76,17 +76,20 @@ replace_all(
     std::string::size_type lastPos = 0;
     std::string::size_type findPos;
 
+    int occurrence = 0;
     while(std::string::npos != (findPos = source.find(from, lastPos)))
     {
         newString.append(source, lastPos, findPos - lastPos);
         newString += to;
         lastPos = findPos + from.length();
+        occurrence++;
     }
 
     // Care for the rest after last occurrence
     newString += source.substr(lastPos);
-
     source.swap(newString);
+
+    return occurrence;
 }
 
 void print_help(std::string basename) {
@@ -122,7 +125,7 @@ int main(int argc, char** argv) {
     std::vector<std::string> inputs;
     for (std::string tmp;
         std::getline(std::cin, tmp);
-        inputs.push_back('"' + tmp + '"')) {}
+        inputs.push_back("'" + tmp + "'")) {}
 
     std::string placeholder = args.contains("j") ? args["j"] : "%";
 
@@ -163,8 +166,12 @@ int main(int argc, char** argv) {
     } else {
         for (auto input : inputs) {
             auto copy = rest;
+            int count = 0;
             for (auto& a : copy) {
-                replace_all(a, placeholder, input);
+                count += replace_all(a, placeholder, input);
+            }
+            if (!count) {
+                copy.insert(copy.end(), input);
             }
             spawn(copy);
         }
