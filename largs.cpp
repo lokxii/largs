@@ -1,12 +1,12 @@
-#include <cstdlib>
+#include <unistd.h>
 #include <algorithm>
+#include <cstdlib>
 #include <iostream>
 #include <iterator>
 #include <map>
 #include <optional>
 #include <sstream>
 #include <string>
-#include <unistd.h>
 #include <vector>
 
 std::string shift(std::string arg, int count) {
@@ -63,12 +63,10 @@ parse_args(int argc, char** argv) {
     return {map, the_rest};
 }
 
-int
-replace_all(
+int replace_all(
     std::string& source,
     const std::string& from,
-    const std::string& to)
-{
+    const std::string& to) {
     std::string newString;
     newString.reserve(source.length());  // avoids a few memory allocations
 
@@ -76,8 +74,7 @@ replace_all(
     std::string::size_type findPos;
 
     int occurrence = 0;
-    while(std::string::npos != (findPos = source.find(from, lastPos)))
-    {
+    while (std::string::npos != (findPos = source.find(from, lastPos))) {
         newString.append(source, lastPos, findPos - lastPos);
         newString += to;
         lastPos = findPos + from.length();
@@ -97,8 +94,7 @@ void print_help(std::string basename) {
         "Line oriented version of xargs",
         "",
         "usage: {} [-ch] [-j replstr] [utility [argument ...]]",
-        "replstr defaults to %"
-    };
+        "replstr defaults to %"};
     for (auto line : message) {
         replace_all(line, "{}", basename);
         std::cout << line << std::endl;
@@ -122,9 +118,9 @@ int main(int argc, char** argv) {
     }
 
     std::vector<std::string> inputs;
-    for (std::string tmp;
-        std::getline(std::cin, tmp);
-        inputs.push_back("'" + tmp + "'")) {}
+    for (std::string tmp; std::getline(std::cin, tmp);
+         inputs.push_back("'" + tmp + "'")) {
+    }
 
     std::string placeholder = args.contains("j") ? args["j"] : "%";
 
@@ -132,10 +128,8 @@ int main(int argc, char** argv) {
         auto dist = 0;
         bool found = false;
         while (true) {
-            auto it = std::find_if(
-                cmd.begin() + dist,
-                cmd.end(),
-                [=](const auto& i) {
+            auto it =
+                std::find_if(cmd.begin() + dist, cmd.end(), [=](const auto& i) {
                     return i.find(placeholder) != std::string::npos;
                 });
             if (it == cmd.end()) {
