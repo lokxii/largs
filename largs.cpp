@@ -1,91 +1,31 @@
 #include <unistd.h>
-#include <algorithm>
-#include <cstdlib>
+#include <cstdio>
+#include <cstring>
 #include <iostream>
-#include <iterator>
-#include <map>
-#include <optional>
-#include <sstream>
 #include <string>
 #include <vector>
 
-std::string shift(std::string arg, int count) {
-    return std::string(arg.begin() + count, arg.end());
-}
-
-std::tuple<std::map<std::string, std::string>, std::vector<std::string>>
-parse_args(int argc, char** argv) {
-    std::map<std::string, std::string> map;
-    std::optional<std::string> waiting_to_eat;
-    int i = 1;
-    for (; i < argc; i++) {
-        std::string arg = argv[i];
-
-        if (waiting_to_eat.has_value()) {
-            map[waiting_to_eat.value()] = arg;
-
-        } else if (arg[0] == '-') {
-            arg = shift(arg, 1);
-            while (arg.length() > 0) {
-                switch (arg[0]) {
-                    case 'c':
-                        map["c"] = "";
-                        arg = shift(arg, 1);
-                        break;
-                    case 'h':
-                        map["h"] = "";
-                        arg = shift(arg, 1);
-                        break;
-                    case 'j':
-                        if (arg.length() == 1) {
-                            waiting_to_eat = "j";
-                        } else {
-                            map["j"] = shift(arg, 1);
-                        }
-                        arg = "";
-                        break;
-                    default:
-                        std::cerr << "Unknown option " << arg[0] << std::endl;
-                        exit(1);
-                }
-            }
-
-        } else {
-            break;
-        }
-    }
-
-    std::vector<std::string> the_rest;
-    for (; i < argc; i++) {
-        the_rest.push_back(argv[i]);
-    }
-
-    return {map, the_rest};
-}
+struct Config {
+    bool help = false;
+    std::string repl = "%";
+    bool concat = false;
+};
 
 int replace_all(
-    std::string& source,
+    std::string& str,
     const std::string& from,
     const std::string& to) {
-    std::string newString;
-    newString.reserve(source.length());  // avoids a few memory allocations
-
-    std::string::size_type lastPos = 0;
-    std::string::size_type findPos;
-
-    int occurrence = 0;
-    while (std::string::npos != (findPos = source.find(from, lastPos))) {
-        newString.append(source, lastPos, findPos - lastPos);
-        newString += to;
-        lastPos = findPos + from.length();
-        occurrence++;
+    if (from.empty()) {
+        return 0;
     }
-
-    // Care for the rest after last occurrence
-    newString += source.substr(lastPos);
-    source.swap(newString);
-
-    return occurrence;
+    int count = 0;
+    size_t start_pos = 0;
+    while ((start_pos = str.find(from, start_pos)) != std::string::npos) {
+        str.replace(start_pos, from.length(), to);
+        start_pos += to.length();
+        count += 1;
+    }
+    return count;
 }
 
 void print_help(std::string basename) {
@@ -94,80 +34,138 @@ void print_help(std::string basename) {
         "Line oriented version of xargs",
         "",
         "usage: {} [-ch] [-j replstr] [utility [argument ...]]",
-        "replstr defaults to %"};
+    };
     for (auto line : message) {
         replace_all(line, "{}", basename);
         std::cout << line << std::endl;
     }
 }
 
-void spawn(std::vector<std::string> argv) {
-    std::stringstream ss;
-    for (auto a : argv) {
-        ss << a << ' ';
+Config parse_args(int argc, char** argv, size_t& i) {
+    Config config;
+    std::string current_option = "";
+    for (i = 1; i < argc; i++) {
+        current_option = argv[i];
+        if (not current_option.starts_with('-') ||
+            current_option.length() != 2) {
+            return config;
+        }
+        switch (current_option[1]) {
+            case 'c': {
+                config.concat = true;
+                break;
+            }
+            case 'h': {
+                config.help = true;
+                break;
+            }
+            case 'j': {
+                if (i + 1 >= argc) {
+                    fprintf(stderr, "Expects value for -j\n");
+                    exit(1);
+                }
+                config.repl = argv[++i];
+                break;
+            }
+        }
     }
-    system(ss.str().c_str());
+    return config;
+}
+
+void spawn(char* cmd, std::vector<std::string> argv) {
+    switch (fork()) {
+        case -1: {
+            perror("fork");
+            exit(1);
+        }
+        case 0: {
+            char** ptr_argv = new char*[argv.size() + 1];
+            for (int i = 0; i < argv.size(); i++) {
+                ptr_argv[i] = strdup(argv[i].c_str());
+            }
+            ptr_argv[argv.size()] = NULL;
+            execvp(cmd, ptr_argv);
+            perror("execvp");
+            exit(1);
+        }
+        default: {
+            return;
+        }
+    }
+}
+
+void separate_lines(
+    int argc,
+    char** argv,
+    Config&& config,
+    std::vector<std::string>&& inputs) {
+    for (auto input : inputs) {
+        char* cmd = strdup(argv[0]);
+
+        std::vector<std::string> rargv = {cmd};
+
+        int replace_count = 0;
+        for (int i = 1; i < argc; i++) {
+            std::string arg = argv[i];
+            if (arg == config.repl) {
+                arg = input;
+                replace_count += 1;
+            }
+            rargv.push_back(arg);
+        }
+        if (replace_count == 0) {
+            rargv.push_back(input);
+        }
+
+        spawn(cmd, rargv);
+    }
+}
+
+void same_lines(
+    int argc,
+    char** argv,
+    Config&& config,
+    std::vector<std::string>&& inputs) {
+    char* cmd = strdup(argv[0]);
+
+    int replace_count = 0;
+    std::vector<std::string> rargv = {cmd};
+    for (int i = 1; i < argc; i++) {
+        if (argv[i] == config.repl) {
+            replace_count += 1;
+            rargv.insert(rargv.end(), inputs.begin(), inputs.end());
+        } else {
+            rargv.push_back(argv[i]);
+        }
+    }
+    if (replace_count == 0) {
+        rargv.insert(rargv.end(), inputs.begin(), inputs.end());
+    }
+
+    spawn(cmd, rargv);
 }
 
 int main(int argc, char** argv) {
-    auto [args, cmd] = parse_args(argc, argv);
+    size_t argidx = 0;
+    Config config = parse_args(argc, argv, argidx);
 
-    if (args.contains("h")) {
+    if (config.help) {
         print_help(argv[0]);
         return 0;
     }
 
     std::vector<std::string> inputs;
-    for (std::string tmp; std::getline(std::cin, tmp);
-         inputs.push_back("'" + tmp + "'")) {
+    for (std::string input; std::getline(std::cin, input);
+         inputs.push_back(input)) {
     }
 
-    std::string placeholder = args.contains("j") ? args["j"] : "%";
-
-    if (args.contains("c")) {
-        auto dist = 0;
-        bool found = false;
-        while (true) {
-            auto it =
-                std::find_if(cmd.begin() + dist, cmd.end(), [=](const auto& i) {
-                    return i.find(placeholder) != std::string::npos;
-                });
-            if (it == cmd.end()) {
-                if (!found) {
-                    cmd.insert(cmd.end(), inputs.begin(), inputs.end());
-                }
-                break;
-            }
-
-            found = true;
-            auto t_input = std::vector<std::string>();
-            std::transform(
-                inputs.begin(),
-                inputs.end(),
-                std::back_inserter(t_input),
-                [&](const auto& i) {
-                    auto pattern = *it;
-                    replace_all(pattern, placeholder, i);
-                    return pattern;
-                });
-            dist = std::distance(cmd.begin(), it);
-            cmd.erase(it);
-            cmd.insert(cmd.begin() + dist, t_input.begin(), t_input.end());
-            dist += t_input.size();
-        }
-        spawn(cmd);
+    if (not config.concat) {
+        separate_lines(
+            argc - argidx, argv + argidx, std::move(config), std::move(inputs));
     } else {
-        for (auto input : inputs) {
-            auto cmd_copy = cmd;
-            int count = 0;
-            for (auto& arg : cmd_copy) {
-                count += replace_all(arg, placeholder, input);
-            }
-            if (!count) {
-                cmd_copy.insert(cmd_copy.end(), input);
-            }
-            spawn(cmd_copy);
-        }
+        same_lines(
+            argc - argidx, argv + argidx, std::move(config), std::move(inputs));
     }
+
     return 0;
 }
