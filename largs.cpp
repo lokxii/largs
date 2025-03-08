@@ -1,3 +1,4 @@
+#include <sys/wait.h>
 #include <unistd.h>
 #include <cstdio>
 #include <cstring>
@@ -165,6 +166,9 @@ int main(int argc, char** argv) {
     } else {
         same_lines(
             argc - argidx, argv + argidx, std::move(config), std::move(inputs));
+    }
+
+    while (wait(NULL) > 0) {
     }
 
     return 0;
